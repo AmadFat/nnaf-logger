@@ -1,5 +1,5 @@
-from nnaf._types import *
-from nnaf.parallel import run_in_another_thread
+from nnaf_utils.pytypes import *
+from nnaf_utils.parallel import run_in_another_thread
 from .miscs import *
 import colorama
 colorama.init()
@@ -12,7 +12,7 @@ class Loggerv2:
         print_info_interval: int = 1,
 
         log_level: Literal[LogLevel.DEBUG, LogLevel.INFO] = LogLevel.INFO,
-        log_dir: str = "./nnaf-logs",
+        log_dir: StrPath = "./nnaf-logs",
         log_save_for_man: bool = True,
         log_save_as_json: bool = False,
         log_name_style: str = colorama.Back.WHITE + colorama.Fore.BLACK + colorama.Style.BRIGHT,
@@ -35,7 +35,7 @@ class Loggerv2:
         wandb_run_id: str = None,
         wandb_run_name: str = None,
         wandb_run_group: str = None,
-        wandb_run_tags: list[str] = None,
+        wandb_run_tags: Sequence[str] = None,
         wandb_run_notes: str = None,
         wandb_job_type: Literal["train", "eval"] = "train",
         wandb_anonymous_log: Literal["allow", "must", "never"] = "never",
@@ -108,22 +108,26 @@ class Loggerv2:
             use_wandb = False
 
         if use_wandb and wandb_project is not None:
-            self.wandb_run = wandb.init(
-                entity=wandb_entity,
-                project=wandb_project,
-                dir=wandb_dir,
-                id=wandb_run_id,
-                name=wandb_run_name,
-                group=wandb_run_group,
-                tags=wandb_run_tags,
-                notes=wandb_run_notes,
-                job_type=wandb_job_type,
-                mode=wandb_mode,
-                force=False,
-                anonymous=wandb_anonymous_log,
-                reinit="create_new",
-                resume="auto",
-            )
+            try:
+                self.wandb_run = wandb.init(
+                    entity=wandb_entity,
+                    project=wandb_project,
+                    dir=wandb_dir,
+                    id=wandb_run_id,
+                    name=wandb_run_name,
+                    group=wandb_run_group,
+                    tags=wandb_run_tags,
+                    notes=wandb_run_notes,
+                    job_type=wandb_job_type,
+                    mode=wandb_mode,
+                    force=False,
+                    anonymous=wandb_anonymous_log,
+                    reinit="create_new",
+                    resume="auto",
+                )
+                self.watch_pytorch_module = self.wandb_run.watch
+            except Exception:
+                self.error()
         else:
             self.wandb_run = None
 
@@ -139,8 +143,7 @@ class Loggerv2:
         if log_save_for_man or log_save_as_json:
             from logging import handlers
 
-            log_dir = Path(log_dir)
-            log_dir.mkdir(parents=True, exist_ok=True)
+            Path(log_dir).mkdir(parents=True, exist_ok=True)
 
             if self.wandb_run is not None:
                 log_file_name = self.wandb_run.id
@@ -151,7 +154,7 @@ class Loggerv2:
 
             if log_save_for_man:
                 man_file_handler = handlers.RotatingFileHandler(
-                    filename=log_dir / f"{log_file_name}@man.log",
+                    filename=Path(log_dir) / f"{log_file_name}@man.log",
                     maxBytes=1 << 25,  # 32 MiB
                     backupCount=5,
                     encoding="utf-8",
@@ -180,7 +183,7 @@ class Loggerv2:
             
             if log_save_as_json:
                 json_file_handler = handlers.RotatingFileHandler(
-                    filename=log_dir / f"{log_file_name}@json.log",
+                    filename=Path(log_dir) / f"{log_file_name}@json.log",
                     maxBytes=1 << 25,  # 32 MiB
                     backupCount=5,
                     encoding="utf-8",
@@ -244,10 +247,11 @@ class Loggerv2:
             **kwargs,
         )
     
-    def error(self, *args, exc_info=True, **kwargs):
+    def error(self, *args, exc_info=True, shutdown=True, **kwargs):
         self.logger.error(*args, level="error", exc_info=exc_info, **kwargs)
-        self.close()
-        exit(1)
+        if shutdown:
+            self.close()
+            exit(1)
 
     def close(self):
         if self.wandb_run is not None:

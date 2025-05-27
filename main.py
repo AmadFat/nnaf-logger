@@ -18,3 +18,5 @@ try:
     1 / 0
 except Exception as e:
     logger.error("An exception occurred", epoch=1, step=5)
+
+logger.watch_pytorch_module
