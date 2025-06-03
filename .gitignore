@@ -1,0 +1,18 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+
+# as a package
+*.egg-info
+.python-version
+uv.lock
+
+# Virtual environments
+.venv
+
+# Temp storage
+wandb/
+nnaf-logs/
