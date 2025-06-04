@@ -1,7 +1,7 @@
-import math, random, time
+import math
+import random
+import time
 from argparse import ArgumentParser
-
-from nnaf_utils.filesystem import refresh_obj
 
 from nnaf_logger import LogConfig, Loggerv2, LogLevel, WandbConfig
 
