@@ -32,6 +32,16 @@ def add_log_level(
     return event_dict
 
 
+def filter_none_event(
+    logger,
+    method_name,
+    event_dict,
+):
+    if event_dict["event"] is None:
+        event_dict.pop("event")
+    return event_dict
+
+
 def get_console_renderer(
     loggername_style: str,
     timestamp_style: str,

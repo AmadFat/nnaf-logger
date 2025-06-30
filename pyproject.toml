@@ -19,7 +19,8 @@ build-backend = "hatchling.build"
 requires = ["hatchling"]
 
 [tool.uv.sources]
-nnaf-utils = { git = "https://github.com/AmadFat/nnaf-utils" }
+# nnaf-utils = { git = "https://kkgithub.com/AmadFat/nnaf-utils" }
+nnaf-utils = { path = "/home/af/projects/nnaf-utils/dist/nnaf_utils-0.1.0-py3-none-any.whl" }
 
 [tool.ruff]
 line-length = 120

@@ -12,7 +12,7 @@ if __name__ == "__main__":
 
     logger = Loggerv2(
         name="test",
-        print_info_interval=3,
+        print_info_interval=4,
         log_config=LogConfig(level=getattr(LogLevel, args.mode.upper()), save_for_man=True, save_as_json=True, refresh_dir=True),
         wandb_config=WandbConfig(anonymous="allow", api_key=None, dir=".", refresh_dir=True)
     )   

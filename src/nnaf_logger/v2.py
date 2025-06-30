@@ -11,6 +11,8 @@ class Loggerv2:
 
         log_config: LogConfig = None,
         wandb_config: WandbConfig = None,
+
+        process_kv: Callable = None,
     ):
         import structlog
 
@@ -26,6 +28,18 @@ class Loggerv2:
         self.print_info_interval = print_info_interval
         self.single_step_dict = dict()
 
+        def default_process_kv(k, v):
+            if "lr" in k or "learning_rate" in k:
+                return k, f"{v:.2e}"
+            
+            match v:
+                case float():
+                    return k, f"{v:.4f}"
+            
+            return k, v
+        
+        self.process_kv = process_kv or default_process_kv
+
     def _init_structlog(self, log_config: LogConfig):
         import structlog
         from structlog._native import _make_filtering_bound_logger
@@ -34,11 +48,13 @@ class Loggerv2:
         from .structlog_extentsions import (
             ExtendedLoggerFactory,
             add_log_level,
+            filter_none_event,
             get_console_renderer,
         )
 
         processors = [
             add_log_level,
+            filter_none_event,
             TimeStamper(
                 fmt=log_config.timestamp_format,
                 utc=log_config.timestamp_utc,
@@ -173,23 +189,23 @@ class Loggerv2:
     """Normal logging methods."""
 
     def debug(self, event=None, **kwargs):
-        self.logger.debug(**self._filter_kwargs_none(event=event), **kwargs)
+        self.logger.debug(event=event, **kwargs)
 
     def train(self, event=None, **kwargs):
-        self.logger.train(**self._filter_kwargs_none(event=event), **kwargs)
+        self.logger.train(event=event, **kwargs)
     
     def info(self, event=None, **kwargs):
-        self.logger.info(**self._filter_kwargs_none(event=event), **kwargs)
+        self.logger.info(event=event, **kwargs)
     
     def test(self, event=None, **kwargs):
-        self.logger.test(**self._filter_kwargs_none(event=event), **kwargs)
+        self.logger.test(event=event, **kwargs)
     
     def warn(self, event=None, **kwargs):
-        self.logger.warn(**self._filter_kwargs_none(event=event), **kwargs)
+        self.logger.warn(event=event, **kwargs)
     
     def error(self, event=None, exc_info=True, shutdown=True, **kwargs):
         try:
-            self.logger.error(**self._filter_kwargs_none(event=event), **kwargs, exc_info=exc_info)
+            self.logger.error(event=event, **kwargs, exc_info=exc_info)
         finally:
             if shutdown:
                 self.close()
@@ -218,15 +234,12 @@ class Loggerv2:
                 return level.name.lower()
             case str():
                 return getattr(LogLevel, level.upper()).name.lower()
+    
+    def _filter_none(self, **kwargs):
+        return {k: v for k, v in kwargs.items() if v is not None}
 
-    def _filter_kwargs_none(
-        self,
-        **kwargs,
-    ) -> dict:
-        popks = [k for k, v in kwargs.items() if v is None]
-        for k in popks:
-            kwargs.pop(k)
-        return kwargs
+    def _process_kwargs(self, _fn_kv=None, **kwargs):
+        return dict(_fn_kv(k, v) for k, v in kwargs.items())
 
     def add(
         self,
@@ -246,7 +259,7 @@ class Loggerv2:
         if event:
             lift = "info" if self.now_index % self.print_info_interval == 0 else None
             level = self._process_level(level, lift=lift)
-            getattr(self, level)(event=event, **self._filter_kwargs_none(epoch=epoch, step=step))
+            getattr(self, level)(event=event, **self._filter_none(epoch=epoch, step=step))
 
     def commit(
         self,
@@ -258,7 +271,18 @@ class Loggerv2:
         """In the end of every epoch you should call :func:`commit`."""
         lift = "info" if self.now_index % self.print_info_interval == 0 else None
         level = self._process_level(level=level, lift=lift)
-        getattr(self, level)(**self._filter_kwargs_none(event=event, epoch=epoch, step=step, **self.single_step_dict))
+        getattr(self, level)(
+            event=event,
+            **self._filter_none(
+                epoch=epoch,
+                step=step,
+            ),
+            **self._process_kwargs(
+                _fn_k=self.process_k,
+                _fn_v=self.process_v,
+                **self.single_step_dict,
+            )
+        )
 
         if self.wandb_run:
             self.wandb_log(
